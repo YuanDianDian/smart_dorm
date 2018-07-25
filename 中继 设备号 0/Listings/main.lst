@@ -1,0 +1,221 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/06/2017 20:07:52 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Program Files (x86)\MDK5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRIN
+                    -T(.\Listings\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "usart.h"
+   2          
+   3            u8 *p=NULL;
+   4          u8 xdata q[]="0000FF\r\n";  //设备号 00
+   5          u8 xdata event[14];   
+   6          u8 xdata form[7];  //自己上行的路由表
+   7          code unsigned char event_zw[14]={0xF3,'0','0','0','0',0xF3,6,0xF6,0xF6,0xF6,0xF6,0xF6,0xFC,0};//组网申请指
+             -令
+   8          
+   9          bit zw_success;   //组网成功指令
+  10          
+  11          bit flag_back ;  //是否有未处理的信息
+  12          
+  13          void main()
+  14          {
+  15   1        flag_back = 0; 
+  16   1        START:
+  17   1        USART_Init(); event[14]=0;  form[7]=0;
+  18   1        
+  19   1        //strcpy(event,event_zw);   
+  20   1        if (sendCommand(event_zw, "00FF") == Success);
+  21   1        else goto START;  //重启
+  22   1      //  delay_ms(10);                             
+  23   1        while(counter1<300)  //等待1分钟
+  24   1        {  
+  25   2          if(KIND==4){ 
+  26   3            if(point2>11&&Rec_Buf[point2-12]==0xf4&&Rec_Buf[point2-12+Rec_Buf[point2-12+6]]=='0'){
+  27   4                if(Rec_Buf[point2-12+3]=='0'&&Rec_Buf[point2-12+4]=='0'){   //受到总机发送的组网同意指令
+  28   5                    Rec_Buf[point2]=0;
+  29   5                    strcpy(form,Rec_Buf+point2-12+6);  //取出路由表
+  30   5                    q[2]=Rec_Buf[point2-12+1];
+  31   5                    q[3]=Rec_Buf[point2-12+2];
+  32   5                    CLR_Buf();
+  33   5                    SendString(q+2);     //返回标识  设备号+FF
+  34   5                    zw_success=1;       //组网成功
+  35   5                    TR0 = 0;   //指示灯不再闪
+  36   5                    LED = 1;   break;
+  37   5                } 
+  38   4            } 
+  39   3          }  
+  40   2        }  // zw_success=1; LED = 1;   TR0 = 0;
+  41   1        if(zw_success==0) goto START;  //重启           
+  42   1      
+  43   1        if(flag_back!=0){
+  44   2          if (sendCommand(event, "00FF") == Success);
+  45   2           else goto START;  //重启
+  46   2          flag_back = 0;
+  47   2          CLR_Buf();
+  48   2        }   
+  49   1      
+  50   1           while(1)
+  51   1        {
+  52   2          switch(KIND){
+  53   3            case 1:  //收到上行指令
+C51 COMPILER V9.56.0.0   MAIN                                                              04/06/2017 20:07:52 PAGE 2   
+
+  54   3      //      if(zw_success==0) break;
+  55   3              if(point2>11&&Rec_Buf[point2-12]==0xf1&&Rec_Buf[point2-12+Rec_Buf[point2-12+6]]=='0'){
+  56   4                  Rec_Buf[point2+1]=0;
+  57   4                  strcpy(event,Rec_Buf+point2-12);
+  58   4                  q[2]=event[1];
+  59   4                  q[3]=event[2];
+  60   4                  event[1]=0x30;
+  61   4                  event[2]=0x30;
+  62   4                  event[6] -= 1;
+  63   4                  SendString(q+2);  //返回标识  设备号+FF
+  64   4                  if (sendCommand(event, "00FF") == Success);
+  65   4                  else { flag_back=1; goto START;  //重启   else soft_reset();  //重启
+  66   5                  }
+  67   4                  CLR_Buf();
+  68   4                //  delay_ms(10);     
+  69   4              }
+  70   3            KIND = 0;
+  71   3            break;  
+  72   3            
+  73   3            case 2:  //收到下行指令
+  74   3      //      if(zw_success==0) break;
+  75   3              if(point2>11&&Rec_Buf[point2-12]==0xf2&&Rec_Buf[point2-12+Rec_Buf[point2-12+6]]=='0'){
+  76   4                  Rec_Buf[point2+1]=0;
+  77   4                  strcpy(event,Rec_Buf+point2-12);
+  78   4                  q[2]=event[1];
+  79   4                  q[3]=event[2];
+  80   4                  event[1]=0x30;
+  81   4                  event[2]=0x30;
+  82   4                  event[6] += 1;
+  83   4                  SendString(q+2);  //返回标识  设备号+FF
+  84   4                  if (sendCommand(event, "00FF") == Success);
+  85   4                  else {
+  86   5                    event[5]=0xf7;  //出错了
+  87   5                    event[6] -= 2;
+  88   5                    event[0] = 0xf1;
+  89   5                    event[12]= 0xfe;
+  90   5                    if (sendCommand(event, "00FF") == Success);
+  91   5                    else { 
+  92   6                     flag_back=1; goto START;  //重启 
+  93   6                    } 
+  94   5                  }
+  95   4                  CLR_Buf();            
+  96   4                //  delay_ms(10);
+  97   4              }     
+  98   3            KIND = 0;
+  99   3            break;  
+ 100   3            
+ 101   3            case 3:  //收到组网上行指令
+ 102   3      //      if(zw_success==0) break;
+ 103   3            if(point2>11&&Rec_Buf[point2-12]==0xf3&&Rec_Buf[point2-12+5]==0xF3&&Rec_Buf[point2-12+4]==Rec_Buf[point
+             -2-12+2]&&Rec_Buf[point2-12+3]==Rec_Buf[point2-12+1]){  //收到某设备的组网请求
+ 104   4                    Rec_Buf[point2+1]=0;
+ 105   4                    strcpy(event,Rec_Buf+point2-12);
+ 106   4                
+ 107   4                    event[6] = 0;
+ 108   4                    strcat(event,form);  //粘贴进去路由表
+ 109   4                    event[12]=0xFC;
+ 110   4                    event[6] -= 1;
+ 111   4                
+ 112   4                    q[2]=event[1];
+ 113   4                    q[3]=event[2];
+ 114   4                    event[1]=0x30;
+C51 COMPILER V9.56.0.0   MAIN                                                              04/06/2017 20:07:52 PAGE 3   
+
+ 115   4                    event[2]=0x30;
+ 116   4                    SendString(q+2);  //返回标识  设备号+FF
+ 117   4                    if (sendCommand(event, "00FF") == Success);
+ 118   4                    else { 
+ 119   5                    flag_back=1; goto START;  //重启  
+ 120   5                    }   
+ 121   4                    CLR_Buf();
+ 122   4              //      delay_ms(10);
+ 123   4              } else
+ 124   3            if(point2>11&&Rec_Buf[point2-12]==0xf3&&Rec_Buf[point2-12+Rec_Buf[point2-12+6]]=='0'&&(Rec_Buf[point2-1
+             -2+6]==11||Rec_Buf[point2-12+Rec_Buf[point2-12+6]+1]==Rec_Buf[point2-12+2])){
+ 125   4                Rec_Buf[point2+1]=0;
+ 126   4                strcpy(event,Rec_Buf+point2-12);
+ 127   4                q[2]=event[1];
+ 128   4                q[3]=event[2];
+ 129   4                event[1]=0x30;
+ 130   4                event[2]=0x30;
+ 131   4                event[6] -= 1;
+ 132   4                SendString(q+2);  //返回标识  设备号+FF
+ 133   4                if (sendCommand(event, "00FF") == Success);
+ 134   4                else { 
+ 135   5                     flag_back=1; goto START;  //重启 
+ 136   5                    }   
+ 137   4                CLR_Buf();
+ 138   4             //  delay_ms(10);
+ 139   4            } 
+ 140   3            KIND = 0;
+ 141   3            break;  
+ 142   3            
+ 143   3            case 4:  //收到组网下行指令
+ 144   3          
+ 145   3            if(point2>11&&Rec_Buf[point2-12]==0xf4&&Rec_Buf[point2-12+Rec_Buf[point2-12+6]]=='0'){
+ 146   4                if(Rec_Buf[point2-12+3]=='0'&&Rec_Buf[point2-12+4]=='0'){      //受到总机发送的组网同意指令
+ 147   5                    Rec_Buf[point2]=0;
+ 148   5                    strcpy(form,Rec_Buf+point2-12+6);   //取出路由表
+ 149   5                    q[2]=Rec_Buf[point2-12+1];
+ 150   5                    q[3]=Rec_Buf[point2-12+2];
+ 151   5                    SendString(q+2);     //返回标识  设备号+FF
+ 152   5                    zw_success=1;       //组网成功
+ 153   5                    TR0 = 0;   //指示灯不再闪
+ 154   5                    LED = 1;
+ 155   5                } else{
+ 156   5                  Rec_Buf[point2+1]=0;
+ 157   5                  strcpy(event,Rec_Buf+point2-12);
+ 158   5                  q[2]=event[1];
+ 159   5                  q[3]=event[2];
+ 160   5                  event[1]=0x30;
+ 161   5                  event[2]=0x30;
+ 162   5                  event[6] += 1;
+ 163   5                  SendString(q+2);  //返回标识  设备号+FF
+ 164   5                  if (sendCommand(event, "00FF") == Success);
+ 165   5                  else {
+ 166   6                    event[5]=0xf7;  //出错了
+ 167   6                    event[6] -= 2;
+ 168   6                    event[0] = 0xf1;
+ 169   6                    event[12]= 0xfe;
+ 170   6                    if (sendCommand(event, "00FF") == Success);
+ 171   6                    else { 
+ 172   7                    flag_back=1; goto START;  //重启  
+ 173   7                    }  
+ 174   6                  } 
+ 175   5                }
+C51 COMPILER V9.56.0.0   MAIN                                                              04/06/2017 20:07:52 PAGE 4   
+
+ 176   4            } 
+ 177   3          
+ 178   3            KIND = 0;
+ 179   3            break;  
+ 180   3            
+ 181   3            case 5:  //测试指令
+ 182   3      //    if(zw_success==0) break;
+ 183   3              
+ 184   3            KIND = 0;
+ 185   3            break;  
+ 186   3          }
+ 187   2        }
+ 188   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1496    ----
+   CONSTANT SIZE    =     19    ----
+   XDATA SIZE       =     30    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      3    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

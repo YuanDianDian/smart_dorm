@@ -1,0 +1,174 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/05/2017 20:00:18 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Program Files (x86)\MDK5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRIN
+                    -T(.\Listings\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "usart.h"
+   2          
+   3          //  u8 *p=NULL;
+   4          u8 xdata q[]="0000FF\r\n";  //…Ë±∏∫≈ 00
+   5          u8 xdata event[14];   
+   6          u8 xdata form[7];  //◊‘º∫…œ––µƒ¬∑”…±Ì
+   7          code unsigned char event_zw[14]={0xF3,'0','0','0','0',0xF3,1,0xF6,0xF6,0xF6,0xF6,0xF6,0xFC,0};//◊ÈÕ¯…Í«Î÷∏
+             -¡Ó
+   8          
+   9          bit zw_success;   //◊ÈÕ¯≥…π¶÷∏¡Ó
+  10          
+  11          //#define Tip_max 40  //±¿¿£»›»Ã…œœﬁ
+  12          
+  13          //u8 flag_back ;
+  14          
+  15          unsigned  char i;
+  16          void main()
+  17          {
+  18   1        START:
+  19   1        USART_Init();  event[13]=0;  event[6]=0;
+  20   1         /* 
+  21   1        strcpy(event,event_zw);   
+  22   1        if (sendCommand("event", "00FF") == Success);
+  23   1        else soft_reset();  //÷ÿ∆Ù
+  24   1        delay_ms(10);
+  25   1         */
+  26   1      //strcpy(event,event_zw); 
+  27   1      zw_success=1; form[0]=7; form[1]='0';
+  28   1       for( i=2;i<6;i++)   form[i]=0xf6; form[6]=0;  SendString(form);
+  29   1        SendString(event_zw);
+  30   1        while(1)
+  31   1        {
+  32   2          switch(KIND){
+  33   3            case 1:  // ’µΩ…œ––÷∏¡Ó
+  34   3            if(zw_success==0) break;
+  35   3              if(point2>11&&Rec_Buf[point2-12]==0xf1&&Rec_Buf[point2-12+Rec_Buf[point2-12+6]]=='0'){
+  36   4                if(Rec_Buf[point2-12+6]==11||Rec_Buf[point2-12+Rec_Buf[point2-12+6]+1]==Rec_Buf[point2-12+2]){  //»∑»
+             -œ ’µΩ…œ––÷∏¡Ó
+  37   5                  Rec_Buf[point2+1]=0;
+  38   5                  strcpy(event,Rec_Buf+point2-12);
+  39   5                                              SendString(event);
+  40   5                  q[2]=event[1];
+  41   5                  q[3]=event[2];
+  42   5                  event[1]=q[0];
+  43   5                  event[2]=q[1];
+  44   5                  event[6] -= 1;
+  45   5                  SendString(q+2);  //∑µªÿ±Í ∂  …Ë±∏∫≈+FF
+  46   5            //      if (sendCommand(event, "00FF") == Success);
+  47   5            //      else goto START;  //÷ÿ∆Ù
+  48   5                  delay_ms(10);
+  49   5                }       
+  50   4              }
+  51   3            KIND = 0;
+  52   3            break;  
+C51 COMPILER V9.56.0.0   MAIN                                                              04/05/2017 20:00:18 PAGE 2   
+
+  53   3            
+  54   3            case 2:  // ’µΩœ¬––÷∏¡Ó
+  55   3            if(zw_success==0) break;
+  56   3                    
+  57   3            KIND = 0;
+  58   3            break;  
+  59   3            
+  60   3            case 3:  // ’µΩ◊ÈÕ¯…œ––÷∏¡Ó
+  61   3            if(zw_success==0) break;
+  62   3            if(point2>11&&Rec_Buf[point2-12]==0xf3&&Rec_Buf[point2-12+5]==0xF3&&Rec_Buf[point2-12+4]==Rec_Buf[point
+             -2-12+2]&&Rec_Buf[point2-12+3]==Rec_Buf[point2-12+1]){  // ’µΩƒ≥…Ë±∏µƒ◊ÈÕ¯«Î«Û
+  63   4                    Rec_Buf[point2+1]=0;
+  64   4                    strcpy(event,Rec_Buf+point2-12);
+  65   4            
+  66   4                    event[6] = 0;
+  67   4                    strcat(event,form);  //’≥Ã˘Ω¯»•¬∑”…±Ì
+  68   4      
+  69   4                    event[12]=0xFC;
+  70   4                    event[0]=0xF4;
+  71   4                    event[12]=0xFB;
+  72   4                    q[2]=event[1];
+  73   4                    q[3]=event[2];
+  74   4                    event[1]=q[0];
+  75   4                    event[2]=q[1];
+  76   4                    SendString(q+2);  //∑µªÿ±Í ∂  …Ë±∏∫≈+FF
+  77   4      
+  78   4                    if (sendCommand(event, "00FF") == Success);
+  79   4                    else goto START;  //÷ÿ∆Ù
+  80   4                    delay_ms(10);
+  81   4              } else
+  82   3            if(point2>11&&Rec_Buf[point2-12]==0xf3&&Rec_Buf[point2-12+5]==0xF6&&Rec_Buf[point2-12+4]==Rec_Buf[point
+             -2-12+2]&&Rec_Buf[point2-12+3]==Rec_Buf[point2-12+1]){
+  83   4                
+  84   4                SendString(q+2);  //∑µªÿ±Í ∂  …Ë±∏∫≈+FF
+  85   4                
+  86   4            } 
+  87   3            KIND = 0;
+  88   3            break;  
+  89   3            
+  90   3            case 4:  // ’µΩ◊ÈÕ¯œ¬––÷∏¡Ó
+  91   3            if(point2>11&&Rec_Buf[point2-12]==0xf4&&Rec_Buf[point2-12+Rec_Buf[point2-12+6]]=='0'){
+  92   4              if(Rec_Buf[point2-12+6]==7||Rec_Buf[point2-12+Rec_Buf[point2-12+6]-1]==Rec_Buf[point2-12+2]){  //»∑»œ 
+             -’µΩ◊ÈÕ¯œ¬––÷∏¡Ó
+  93   5            //  if(Rec_Buf[point2-12+6]==11||Rec_Buf[point2-12+Rec_Buf[point2-12+6]+1]==0XF6){  //“—µΩ◊Ó∫Û“ª≤„
+  94   5                if(Rec_Buf[point2-12+4]=='0'&&Rec_Buf[point2-12+5]=='0'){      // ‹µΩ◊‹ª˙∑¢ÀÕµƒ◊ÈÕ¯Õ¨“‚÷∏¡Ó
+  95   6                    Rec_Buf[point2]=0;
+  96   6                    strcpy(form,Rec_Buf+point2-12+6);   //»°≥ˆ¬∑”…±Ì
+  97   6                    strcpy(event,event_zw);  
+  98   6                    q[2]=event[1];
+  99   6                    q[3]=event[2];
+ 100   6                    event[1]=q[0];
+ 101   6                    event[2]=q[1];
+ 102   6                    SendString(q+2);     //∑µªÿ±Í ∂  …Ë±∏∫≈+FF
+ 103   6                  
+ 104   6                    event[5] = 0xF6;     //∏ÊÀﬂ◊‹ª˙Œ““— ’µΩÕ¨“‚Õ®÷™
+ 105   6                    event[6] = 0;
+ 106   6                    strcat(event,form);  //’≥Ã˘Ω¯»•¬∑”…±Ì
+ 107   6                    event[12]=0xFC;
+ 108   6                    event[1]=0xF3;       //◊™ªª≥……œ––◊ÈÕ¯÷∏¡Ó
+ 109   6                    if (sendCommand(event, "00FF") == Success);
+ 110   6                    else goto START;  //÷ÿ∆Ù
+ 111   6                    delay_ms(10);
+C51 COMPILER V9.56.0.0   MAIN                                                              04/05/2017 20:00:18 PAGE 3   
+
+ 112   6                    zw_success=1;       //◊ÈÕ¯≥…π¶
+ 113   6                    TR0 = 0;   //÷∏ æµ∆≤ª‘Ÿ…¡
+ 114   6                    LED = 1;
+ 115   6                } else {    
+ 116   6                  if(zw_success==0) break;
+ 117   6                  Rec_Buf[point2+1]=0;
+ 118   6                  strcpy(event,Rec_Buf-12);
+ 119   6                  q[2]=event[1];
+ 120   6                  q[3]=event[2];
+ 121   6                  event[1]=q[0];
+ 122   6                  event[2]=q[1];
+ 123   6                  event[6] += 1;
+ 124   6                  SendString(q+2);  //∑µªÿ±Í ∂  …Ë±∏∫≈+FF
+ 125   6                  if (sendCommand(event, "00FF") == Success);
+ 126   6                  else goto START;  //÷ÿ∆Ù
+ 127   6                  delay_ms(10);
+ 128   6                }
+ 129   5              }
+ 130   4            }
+ 131   3            KIND = 0;
+ 132   3            break;  
+ 133   3            
+ 134   3            case 5:  //≤‚ ‘÷∏¡Ó
+ 135   3            if(zw_success==0) break;
+ 136   3              
+ 137   3            KIND = 0;
+ 138   3            break;  
+ 139   3          }
+ 140   2        }
+ 141   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1144    ----
+   CONSTANT SIZE    =     19    ----
+   XDATA SIZE       =     30    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      1    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
