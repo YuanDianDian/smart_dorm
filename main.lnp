@@ -1,0 +1,7 @@
+"main.obj",
+"uart.obj",
+"LCD12864_S.obj",
+"DS18B20.obj" 
+TO "main" 
+RAMSIZE(256) 
+DISABLEWARNING (16) 

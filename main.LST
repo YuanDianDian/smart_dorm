@@ -1,0 +1,333 @@
+C51 COMPILER V9.56.0.0   MAIN                                                              04/18/2017 17:14:57 PAGE 1   
+
+
+C51 COMPILER V9.56.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: D:\Program Files (x86)\MDK5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND TABS
+                    -(2)
+
+line level    source
+
+   1          #include "main.h"
+   2          #include "uart.h"
+   3          #include "LCD12864_S.h"
+   4          #include "DS18B20.h"
+   5          
+   6          u8  form[7];  //自己上行的路由表
+   7          code unsigned char event_zw[14]={0xF3,'a','5','a','5',0xF3,1,0xF6,0xF6,0xF6,0xF6,0xF6,0xFC,0};//组网申请指
+             -令
+   8          
+   9          bit zw_success;   //组网成功指令
+  10          bit flag_back ;  //是否有未处理的信息
+  11          
+  12          u8  event[14]; //设备号 2 0x50
+  13          u8 *p=NULL;
+  14          u8 xdata q[]="a200FF";  //
+  15          
+  16          #define TEMP_MAX 25
+  17          #define CO_MAX 30
+  18          #define Tip_max 40  //崩溃容忍上限
+  19          
+  20          //定义变量
+  21          unsigned long  Time_Cont = 0;       //定时器计数器
+  22          
+  23          unsigned char state = 0;
+  24          unsigned char state_pre1 = 0;
+  25          unsigned char state_pre2 = 0;
+  26          
+  27          unsigned int Temp_Buffer = 0;
+  28          unsigned char key_num = 0;
+  29          bit flag_sw = 1;
+  30          unsigned int ADC_Buffer = 0;  
+  31          
+  32          #define S1_S0 0x40
+  33          #define S1_S1 0x80
+  34          
+  35          void main()
+  36          {
+  37   1        u8 tip=0;
+  38   1        unsigned char i=0;
+  39   1        
+  40   1        ADC_CONTR = ADC_360T | ADC_ON;
+  41   1        
+  42   1        //AUXR1 |= ADRJ;                  //ADRJ = 1;     //10bitAD右对齐
+  43   1        CLK_DIV |= 0x20;          //10bitAD右对齐
+  44   1        
+  45   1        ACC = P_SW1;
+  46   1        ACC &= ~(S1_S0|S1_S1);
+  47   1        ACC |= S1_S0;   //  ?????   P3.6RXD P3.7TXD
+  48   1        P_SW1 = ACC;
+  49   1        
+  50   1      
+  51   1        Uart_Init();
+  52   1      
+  53   1        LcmInit();                //液晶初始化
+C51 COMPILER V9.56.0.0   MAIN                                                              04/18/2017 17:14:57 PAGE 2   
+
+  54   1        LcmClearTXT();              //清除显示
+  55   1        LcmClearBMP();
+  56   1        delay_ms(100);
+  57   1        PutStr(0,0,"。。初始化中。。"); 
+  58   1      
+  59   1        event[3]= 0x02;            //第4位设备号为 0x02
+  60   1      
+  61   1        Temp_Buffer = Get_temp();
+  62   1        delay_ms(1000);
+  63   1        LcmClearTXT();              //清除显示
+  64   1      
+  65   1        while(1)
+  66   1        { 
+  67   2          Temp_Buffer = Get_temp();
+  68   2          PutStr(0,0,"温度："); 
+  69   2        
+  70   2          if( Temp_Buffer/1000 != 0 )         //如果第一位为0，忽略显示
+  71   2          {
+  72   3            WriteData(Temp_Buffer/1000+0X30);    //显示温度百位值
+  73   3          }
+  74   2          else
+  75   2          {
+  76   3            if(flag_temper == 1)            //根据温度标志位显示温度正负
+  77   3            {
+  78   4              WriteData('-');
+  79   4            }
+  80   3            else
+  81   3            {
+  82   4              WriteData(' '); 
+  83   4            }    
+  84   3          }
+  85   2            
+  86   2          WriteData(Temp_Buffer%1000/100+0X30);    //显示温度十位值
+  87   2          WriteData(Temp_Buffer%100/10+0X30);    //显示温度个位值
+  88   2          WriteData('.');              //显示小数点
+  89   2          WriteData(Temp_Buffer%10+0X30);      //显示温度十分位值
+  90   2          WriteData(' ');
+  91   2          PutStr(0,7,"℃");
+  92   2                                                            //    flag_temper = 0;    Temp_Buffer=560;
+  93   2          if(flag_temper == 0)
+  94   2          {
+  95   3            if(Temp_Buffer/10 >= TEMP_MAX)
+  96   3            {
+  97   4              state = 1;
+  98   4              PutStr(1,0,"温度超标");       
+  99   4            }
+ 100   3            else
+ 101   3            {
+ 102   4              state = 0;
+ 103   4              PutStr(1,0,"温度合适");
+ 104   4            }
+ 105   3      
+ 106   3            if(Temp_Buffer/10 <= TEMP_MAX - 1)  //低于报警值1度后发送短信功能才复位，防止不停的发短信
+ 107   3            {
+ 108   4              state_pre1 = 0;
+ 109   4            }
+ 110   3          }
+ 111   2      
+ 112   2          if(state == 1&& state_pre1 == 0)
+ 113   2          {
+ 114   3            i=10;
+ 115   3            tip=0;      //发送次数  清零
+C51 COMPILER V9.56.0.0   MAIN                                                              04/18/2017 17:14:57 PAGE 3   
+
+ 116   3            event[4]=Temp_Buffer/10;
+ 117   3            while(state_pre1==0){
+ 118   4            i=10;
+ 119   4            SendString(event);
+ 120   4            tip++;      //统计发送次数
+ 121   4            if(tip>=Tip_max) {state_pre1 = 1; break;}  //崩溃 跳过
+ 122   4            delay_ms(50);
+ 123   4            while(i--)
+ 124   4            {
+ 125   5              if(strstr(Rec_Buf,"a2FF")!=NULL){      //设备号 a2 0x50
+ 126   6                CLR_Buf();
+ 127   6                state_pre1 = 1;
+ 128   6                break;
+ 129   6              }
+ 130   5            }
+ 131   4            if(state_pre1 == 1) break;
+ 132   4            CLR_Buf();
+ 133   4            } 
+ 134   3          }
+ 135   2      
+ 136   2          
+ 137   2          ADC_Buffer = adc10_start(1);    // P1.1 ADC
+ 138   2          PutStr(2,0,"烟雾浓度："); 
+ 139   2          ADC_Buffer = ADC_Buffer*100/1024;
+ 140   2          WriteData(ADC_Buffer%100/10+0X30);
+ 141   2          WriteData(ADC_Buffer%10+0X30);
+ 142   2                                                            //     ADC_Buffer =57;
+ 143   2            if(ADC_Buffer >= CO_MAX)
+ 144   2            {
+ 145   3              state = 1;
+ 146   3              PutStr(3,0,"烟雾浓度超标");
+ 147   3            }
+ 148   2            else
+ 149   2            {
+ 150   3              state = 0;
+ 151   3              PutStr(3,0,"烟雾浓度合适");
+ 152   3            }
+ 153   2      
+ 154   2            if(ADC_Buffer <= TEMP_MAX - 10)   //低于报警值1度后发送短信功能才复位，防止不停的发短信
+ 155   2            {
+ 156   3              state_pre2 = 0;
+ 157   3            }
+ 158   2      //  /*  
+ 159   2            if(state == 1&& state_pre2 == 0)
+ 160   2          { 
+ 161   3            i=10;
+ 162   3            tip=0;      //发送次数  清零
+ 163   3            event[4]=ADC_Buffer+100;    //超过100  的是CO浓度
+ 164   3            while(state_pre2==0){
+ 165   4            i=10;
+ 166   4            SendString(event);
+ 167   4            tip++;      //统计发送次数
+ 168   4            if(tip>=Tip_max) { state_pre2 = 1; break;}  //崩溃 跳过
+ 169   4            delay_ms(50);
+ 170   4            while(i--)
+ 171   4            {
+ 172   5              if(strstr(Rec_Buf,"a2FF")!=NULL){      //设备号 a2 0x50
+ 173   6                CLR_Buf();
+ 174   6                state_pre2 = 1;
+ 175   6                break;
+ 176   6              }
+ 177   5            }
+C51 COMPILER V9.56.0.0   MAIN                                                              04/18/2017 17:14:57 PAGE 4   
+
+ 178   4            if(state_pre2 == 1) break;
+ 179   4            CLR_Buf();
+ 180   4            }   
+ 181   3          }   
+ 182   2      //  */
+ 183   2          p=strstr(Rec_Buf,"X");
+ 184   2           if(p!=NULL){
+ 185   3            if(p-Rec_Buf<90){ 
+ 186   4                if(*(p+8)=='Y'){
+ 187   5                    if(*(p+7)=='1'&&*(p+5)=='0'){
+ 188   6                          
+ 189   6                            if(*(p+1)=='0'&&*(p+2)=='0'&&*(p+3)==2)     //检测是否是该设备
+ 190   6                          {
+ 191   7                                  q[0]=*(p+5);
+ 192   7                                  q[1]=*(p+6);
+ 193   7                                  SendString(q);  //返回值
+ 194   7                                  if(*(p+4)==2)     //请求温度
+ 195   7                                {
+ 196   8                                      tip=0;      //发送次数  清零
+ 197   8                                      Temp_Buffer = Get_temp();     //量取温度
+ 198   8                                      state_pre1 = 0;
+ 199   8                                      i=10;
+ 200   8                                      event[4]=Temp_Buffer/10;
+ 201   8                                      while(state_pre1==0){
+ 202   9                                          i=10;
+ 203   9                                          SendString(event);
+ 204   9                                          tip++;      //统计发送次数
+ 205   9                                          if(tip>=Tip_max) { state_pre1 = 1; break;}  //崩溃 跳过
+ 206   9                                          delay_ms(50);
+ 207   9                                          while(i--)
+ 208   9                                         {
+ 209  10                                            if(strstr(Rec_Buf,"a2FF")!=NULL){      //设备号 a2 0x50
+ 210  11                                              CLR_Buf();
+ 211  11                                              state_pre1 = 1;
+ 212  11                                              break;
+ 213  11                                            }
+ 214  10                                          }
+ 215   9                                          if(state_pre1 == 1) break;
+ 216   9                                          CLR_Buf();
+ 217   9                                      } 
+ 218   8                                } else if(*(p+4)==1)  //请求CO浓度    
+ 219   7                                {
+ 220   8                                      tip=0;      //发送次数  清零
+ 221   8                                      ADC_Buffer = adc10_start(1);
+ 222   8                                      ADC_Buffer = ADC_Buffer*100/1024;
+ 223   8                                      state_pre1 = 0;
+ 224   8                                      i=10;
+ 225   8                                      event[4]=ADC_Buffer+100;
+ 226   8                                      while(state_pre1==0){
+ 227   9                                          i=10;
+ 228   9                                          SendString(event);
+ 229   9                                          tip++;      //统计发送次数
+ 230   9                                          if(tip>=Tip_max) { state_pre1 = 1; break;}  //崩溃 跳过
+ 231   9                                          delay_ms(50);
+ 232   9                                          while(i--)
+ 233   9                                         {
+ 234  10                                            if(strstr(Rec_Buf,"a2FF")!=NULL){      //设备号 a2 0x50
+ 235  11                                              CLR_Buf();
+ 236  11                                              state_pre1 = 1;
+ 237  11                                              break;
+ 238  11                                            }
+ 239  10                                          }
+C51 COMPILER V9.56.0.0   MAIN                                                              04/18/2017 17:14:57 PAGE 5   
+
+ 240   9                                          if(state_pre1 == 1) break;
+ 241   9                                          CLR_Buf();
+ 242   9                                      } 
+ 243   8                                } 
+ 244   7                          }   
+ 245   6                      }
+ 246   5              }
+ 247   4             }
+ 248   3          } 
+ 249   2        //  delay_ms(500);
+ 250   2      
+ 251   2        }
+ 252   1      }
+ 253          
+ 254          
+ 255          //****************************************************
+ 256          //做一次ADC转换
+ 257          //****************************************************
+ 258          unsigned int adc10_start(unsigned char channel) //channel = 0~7
+ 259          {
+ 260   1        unsigned int  adc;
+ 261   1        unsigned char i;
+ 262   1      
+ 263   1        P1ASF = (1 << channel);     //12C5A60AD/S2系列模拟输入(AD)选择
+ 264   1      
+ 265   1        ADC_RES = 0;
+ 266   1        ADC_RESL = 0;
+ 267   1      
+ 268   1        ADC_CONTR = (ADC_CONTR & 0xe0) | ADC_START | channel;
+ 269   1        _nop_();
+ 270   1        _nop_();
+ 271   1        _nop_();
+ 272   1        _nop_();
+ 273   1         
+ 274   1      
+ 275   1      //  for(i=0; i<250; i++)    //13T/loop, 40*13=520T=23.5us @ 22.1184M
+ 276   1        i = 250;
+ 277   1        do{
+ 278   2          if(ADC_CONTR & ADC_FLAG)
+ 279   2          {
+ 280   3            ADC_CONTR &= ~ADC_FLAG;       //软件清零ADC_FLAG
+ 281   3            _nop_();
+ 282   3            _nop_();
+ 283   3            _nop_();
+ 284   3            _nop_();
+ 285   3            adc = 0;
+ 286   3            adc = (ADC_RES << 8) | ADC_RESL;  //ADRJ_enable()
+ 287   3      
+ 288   3      
+ 289   3            return  adc;
+ 290   3          }
+ 291   2        }while(--i);
+ 292   1        return  1024;
+ 293   1      }
+ 294          
+ 295          
+ 296          
+ 297          
+ 298          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+C51 COMPILER V9.56.0.0   MAIN                                                              04/18/2017 17:14:57 PAGE 6   
+
+   CODE SIZE        =   1151    ----
+   CONSTANT SIZE    =    103    ----
+   XDATA SIZE       =      7    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     36       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      3    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
